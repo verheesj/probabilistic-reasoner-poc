@@ -65,6 +65,9 @@ reasoner = ProbabilisticReasoner(kb)
 # Adding facts to the KnowledgeBase
 kb.tell("rain", 0.6)
 kb.tell("not rain", 0.4)
+kb.tell("umbrella if rain", 1)
 
-fact, probability = reasoner.infer("rain")
-print(f"The fact '{fact}' has a probability of {probability}")
+# Infer new facts
+success = reasoner.infer_rule("rain", "umbrella")
+if success:
+    print("New fact inferred: 'umbrella'")
