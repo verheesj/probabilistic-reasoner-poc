@@ -2,12 +2,25 @@ class KnowledgeBase:
     """ A simple knowledge base that stores facts and their probabilities """
     def __init__(self):
         self.facts = dict()
+        self.facts_lifetime = {}
 
     def tell(self, new_fact, new_probability):
         """ Add a fact to the knowledge base """
         # Add a fact to the knowledge base
         self.facts[new_fact] = new_probability
 
+    def tell_lifetime(self, fact, value, start_time, end_time):
+        # Store a fact with a specified lifetime
+        self.facts_lifetime[fact] = (value, start_time, end_time)
+
+    def ask_alive(self, fact, time):
+        # Retrieve a fact that's still "alive" at a given time
+        if fact in self.facts_lifetime:
+            value, start_time, end_time = self.facts_lifetime[fact]
+            if start_time <= time <= end_time:
+                return value
+        return "Fact not found or not alive"
+    
     def ask(self, query):
         """ Query the knowledge base """
         # Query the knowledge base
@@ -41,6 +54,19 @@ class ProbabilisticReasoner:
     
         return False
 
+    def infer_before(self, a, b, time):
+        """ Infer a fact from the knowledge base using a temporal relationship """
+        # If "A before B" is true, and it's after the end time of A and before the end time of B, infer B
+        a_lifetime = self.kb.ask_lifetime(a)
+        b_lifetime = self.kb.ask_lifetime(b)
+        if a_lifetime != "Fact not found or not alive" and b_lifetime != "Fact not found or not alive":
+            _, _, a_end = a_lifetime
+            _, _, b_end = b_lifetime
+            if a_end < time < b_end:
+                self.kb.tell(b, 1)
+                return True
+        return False
+    
     def resolve_ambiguity(self, fact):
         """ Resolve ambiguity in a fact """
         # If fact exists in knowledge base, no ambiguity
@@ -151,22 +177,85 @@ class ProbabilisticReasoner:
             return True
         return False
 
+    def handle_biconditional(self, a, b):
+        # If "A iff B" is true, infer "A => B" and "B => A" are true
+        biconditional_prob = self.kb.ask(f"{a} iff {b}")
+        if biconditional_prob != "Fact not found" and biconditional_prob > 0.5:
+            self.kb.tell(f"{a} implies {b}", 1)
+            self.kb.tell(f"{b} implies {a}", 1)
+            return True
+        return False
+
+    def handle_contradiction(self, a):
+        # If "A" is true, then "not A" is false
+        a_prob = self.kb.ask(a)
+        if a_prob != "Fact not found" and a_prob > 0.5:
+            self.kb.tell(f"not {a}", 0)
+            return True
+        return False
+
+    def bayesian_update(self, fact, evidence, prior, likelihood):
+        # Use Bayes' theorem to update the probability of a fact given some evidence
+        # P(A|B) = P(B|A)*P(A) / P(B)
+        evidence_prob = self.kb.ask(evidence)
+        if evidence_prob == "Fact not found":
+            print(f"No information about {evidence}")
+            return False
+
+        posterior = (likelihood * prior) / evidence_prob
+        self.kb.tell(fact, posterior)
+        return True
+
+    def deductive_reasoning(self, a, b=None, c=None):
+        # Try all forms of deduction on a
+        if self.modus_ponens(a, b):
+            return True
+        if self.disjunctive_syllogism(a, b):
+            return True
+        if self.infer_implication_chain(a, b, c):
+            return True
+        if self.hypothetical_syllogism(a, b, c):
+            return True
+        if self.handle_biconditional(a, b):
+            return True
+        if self.handle_contradiction(a):
+            return True
+        return False
+
+    def inductive_reasoning(self, a):
+        # If "A" is true in several specific instances, infer "A" is generally true
+        instances_true = 0
+        total_instances = 0
+        for instance in self.kb.facts:
+            if a in instance:
+                total_instances += 1
+                if self.kb.ask(instance) > 0.5:
+                    instances_true += 1
+        if total_instances > 0 and instances_true / total_instances > 0.5:
+            self.kb.tell(a, 1)
+            return True
+        return False
+
+    def abductive_reasoning(self, a, b):
+        # If "A => B" is true and "B" is true, infer "A" is plausible
+        b_prob = self.kb.ask(b)
+        implies_prob = self.kb.ask(f"{a} implies {b}")
+        if b_prob != "Fact not found" and implies_prob != "Fact not found" and b_prob > 0.5 and implies_prob > 0.5:
+            self.kb.tell(a, 0.5)  # Set to 0.5 as it's only a plausible explanation
+            return True
+        return False
+
+
 # Initialize KnowledgeBase and Reasoner
 kb = KnowledgeBase()
 reasoner = ProbabilisticReasoner(kb)
 
-# Adding facts to the KnowledgeBase
-kb.tell("rain", 0.6)
-kb.tell("rain implies wet ground", 1)
-kb.tell("wet ground implies umbrella", 1)
+# Add facts with lifetimes to KnowledgeBase
+kb.tell_lifetime("rain", 1, 0, 10)
+kb.tell_lifetime("wet ground", 1, 5, 15)
 
-# Infer using implication chain
-success = reasoner.infer_implication_chain("rain", "wet ground", "umbrella")
-if success:
-    print("New fact inferred: 'umbrella'")
+# Use temporal reasoning
+reasoner.infer_before("rain", "wet ground", 12)
 
-# Infer using hypothetical syllogism
-success = reasoner.hypothetical_syllogism("rain", "wet ground", "umbrella")
-if success:
-    print("New fact inferred: 'rain implies umbrella'")
-
+# The fact 'wet ground' should now be inferred in the KnowledgeBase
+print(kb.ask("wet ground"))
