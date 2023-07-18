@@ -57,8 +57,8 @@ class ProbabilisticReasoner:
     def infer_before(self, a, b, time):
         """ Infer a fact from the knowledge base using a temporal relationship """
         # If "A before B" is true, and it's after the end time of A and before the end time of B, infer B
-        a_lifetime = self.kb.ask_lifetime(a)
-        b_lifetime = self.kb.ask_lifetime(b)
+        a_lifetime = self.kb.ask_alive(a)
+        b_lifetime = self.kb.ask_alive(b)
         if a_lifetime != "Fact not found or not alive" and b_lifetime != "Fact not found or not alive":
             _, _, a_end = a_lifetime
             _, _, b_end = b_lifetime
